@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Talk to Your Spec Sheet</title>
+  <style>
+    :root{--ink:#111827;--muted:#5f6b7a;--line:#d9dee5;--wash:#f5f7fa;--brand:#1f6f8b;--brand-dark:#15516a;--panel:#fff;--shadow:0 8px 24px rgba(16,24,40,.08)}
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:var(--wash);color:var(--ink);font-family:Arial,Helvetica,sans-serif;overflow:hidden}
+    button,input{font:inherit}
+    .app{height:100vh;min-height:620px;display:grid;grid-template-columns:minmax(0,1fr) 400px;background:var(--panel);overflow-x:hidden}
+    .pdf-pane{min-width:0;min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr);border-right:1px solid var(--line);background:#eef2f6;overflow:hidden}
+    .pdf-toolbar{display:flex;align-items:center;gap:8px;min-height:48px;padding:8px 12px;background:#fff;border-bottom:1px solid var(--line)}
+    .pdf-title{min-width:0;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-right:auto}
+    .icon-btn{width:42px;height:42px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;border-radius:6px;display:grid;place-items:center;font-weight:700}
+    .icon-btn:hover{background:#f3f6f8}
+    .page-status{min-width:72px;text-align:center;color:var(--muted);font-size:12px}
+    .pdf-stage{position:relative;min-width:0;min-height:0;overflow:auto;padding:18px;display:flex;align-items:flex-start;justify-content:center}
+    #pdf-canvas{display:block;max-width:100%;height:auto;background:#fff;box-shadow:var(--shadow)}
+    .pdf-fallback{display:none;width:100%;height:100%;border:0;background:#fff}
+    .pdf-loading-message,.pdf-fail-message{display:none;max-width:520px;margin:auto;padding:18px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font-size:14px;line-height:1.45;box-shadow:var(--shadow)}
+    .pdf-loading .pdf-loading-message{display:block}
+    .pdf-loading #pdf-canvas{visibility:hidden}
+    .pdf-error .pdf-fail-message{display:block}
+    .pdf-error #pdf-canvas,.pdf-error .pdf-loading-message{display:none}
+    .chat-pane{display:grid;grid-template-rows:auto minmax(0,1fr) auto;min-width:0;min-height:0;background:#fff;overflow:hidden}
+    .chat-head{padding:18px 18px 14px;border-bottom:1px solid var(--line)}
+    h1{font-size:22px;line-height:1.15;margin:0 0 7px}
+    .chat-intro{margin:0;color:var(--muted);font-size:13px;line-height:1.45}
+    .chat-messages{overflow:auto;padding:16px;display:flex;flex-direction:column;gap:10px;background:#fbfcfd}
+    .chat-message{max-width:92%;padding:11px 12px;background:#fff;border:1px solid var(--line);border-radius:8px;font-size:13px;line-height:1.45;box-shadow:0 2px 8px rgba(16,24,40,.04)}
+    .chat-message.user{align-self:flex-end;background:var(--brand);border-color:var(--brand);color:#fff;border-bottom-right-radius:3px}
+    .chat-message.assistant{align-self:flex-start;border-bottom-left-radius:3px}
+    .chat-source{display:flex;align-items:center;gap:8px;margin-top:9px;color:var(--brand);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+    .page-jump{min-height:42px;border:1px solid var(--brand);background:#fff;color:var(--brand);border-radius:6px;padding:8px 10px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:0;text-transform:none}
+    .page-jump:hover{background:#eef8fb}
+    .chat-note{display:block;margin-top:6px;color:var(--muted);font-size:11px}
+    .chat-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px;padding:12px;border-top:1px solid var(--line);background:#fff}
+    .chat-form input{width:100%;min-height:42px;border:1px solid #cfd4d8;border-radius:6px;padding:11px 12px;color:var(--ink);background:#fff;font-size:16px}
+    .chat-form input:focus{outline:3px solid #8fd0e7;outline-offset:1px}
+    .chat-form button{min-height:42px;border:1px solid var(--brand);border-radius:6px;background:var(--brand);color:#fff;padding:0 16px;font-weight:700;cursor:pointer}
+    .chat-form button:hover{background:var(--brand-dark)}
+    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    @media(max-width:860px){html,body{height:100%;width:100%;min-width:0;overflow:hidden}.app{width:100vw;max-width:100vw;height:100vh;height:100svh;min-height:0;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,48vh) minmax(0,1fr);overflow:hidden}.pdf-pane{width:100%;max-width:100vw;min-height:0;border-right:0;border-bottom:1px solid var(--line)}.pdf-toolbar{width:100%;max-width:100vw;min-width:0;min-height:46px;padding:6px 10px}.pdf-stage{width:100%;max-width:100vw;padding:12px;overflow:auto}.chat-head{padding:12px 14px 10px}h1{font-size:19px}.chat-intro{font-size:12px;line-height:1.35}.chat-messages{padding:12px;gap:9px}.chat-message{max-width:100%;font-size:13px}.chat-form{padding:10px;gap:8px}.chat-form button{min-width:70px;padding:0 14px}}
+    @media(max-width:520px){.app{grid-template-rows:minmax(0,46vh) minmax(0,1fr)}.pdf-toolbar{gap:6px;padding:6px 8px}.pdf-title{font-size:12px}.page-status{min-width:62px}.icon-btn{width:42px;height:42px}.chat-head{padding:10px 12px 8px}h1{font-size:18px}.chat-intro{display:none}.chat-form{grid-template-columns:minmax(0,1fr) auto;padding:10px}.chat-form input{min-width:0}.chat-form button{width:auto}}
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="pdf-pane" aria-label="PDF document pane">
+      <div class="pdf-toolbar">
+        <div class="pdf-title" id="pdf-title">Port Townsend Skatepark Fence Bid Package</div>
+        <button class="icon-btn" type="button" id="prev-page" title="Previous page" aria-label="Previous page">‹</button>
+        <span class="page-status" id="page-status">p.- / 31</span>
+        <button class="icon-btn" type="button" id="next-page" title="Next page" aria-label="Next page">›</button>
+      </div>
+      <div class="pdf-stage" id="pdf-stage">
+        <canvas id="pdf-canvas" aria-label="PDF page canvas"></canvas>
+        <div class="pdf-loading-message" id="pdf-loading-message" role="status">Loading PDF...</div>
+        <div class="pdf-fail-message" id="pdf-fail-message" role="alert">
+          The PDF viewer could not load this document. Refresh the page, or serve the folder from a web server so PDF.js can read the PDF file.
+        </div>
+        <iframe class="pdf-fallback" id="pdf-fallback" title="PDF fallback viewer" src="PortTownsend-SkateparkFence-BidPkg-31pg.pdf#page=1"></iframe>
+      </div>
+    </section>
+    <section class="chat-pane" aria-labelledby="spec-chat-title">
+      <header class="chat-head">
+        <h1 id="spec-chat-title">Talk to Your Spec Sheet</h1>
+        <p class="chat-intro">Ask about the Port Townsend Skatepark Fence Painting bid package. Answers cite the retrieved page and jump the PDF pane to that page.</p>
+      </header>
+      <div class="chat-messages" id="rag-messages" aria-live="polite" aria-label="Spec chat messages"></div>
+      <form class="chat-form" id="rag-form">
+        <label class="sr-only" for="rag-input">Ask a question about the sample spec</label>
+        <input id="rag-input" name="question" type="text" autocomplete="off" placeholder="Ask about scope, paint specs, warranty, bid timing..." aria-label="Ask a question about the sample spec">
+        <button type="submit">Send</button>
+      </form>
+    </section>
+  </main>
+
+  <script src="vendor/pdfjs/pdf.min.js"></script>
+  <script src="rag_corpus.js"></script>
+  <script>
+    (function(){
+      const PDF_URL="PortTownsend-SkateparkFence-BidPkg-31pg.pdf";
+      const canvas=document.getElementById("pdf-canvas");
+      const stage=document.getElementById("pdf-stage");
+      const fallback=document.getElementById("pdf-fallback");
+      const status=document.getElementById("page-status");
+      const prev=document.getElementById("prev-page");
+      const next=document.getElementById("next-page");
+      const workerUrl=new URL("vendor/pdfjs/pdf.worker.min.js",document.baseURI).href;
+      let pdfDoc=null;
+      let renderTask=null;
+      let pendingPage=null;
+      let currentPage=1;
+      let totalPages=31;
+      let workerDisabled=false;
+      let firstRenderComplete=false;
+      let firstRenderLogged=false;
+
+      const pdfViewer={
+        get currentPageNumber(){return currentPage;},
+        set currentPageNumber(page){jumpToPage(page);}
+      };
+      window.specChatPdfViewer=pdfViewer;
+
+      function updateStatus(){
+        status.textContent="p."+currentPage+" / "+totalPages;
+        prev.disabled=currentPage<=1;
+        next.disabled=currentPage>=totalPages;
+      }
+      function setFallbackPage(page){
+        fallback.src=PDF_URL+"#page="+page;
+      }
+      function logPdf(message,detail){
+        if(detail!==undefined)console.log("[spec-chat-pdf] "+message,detail);
+        else console.log("[spec-chat-pdf] "+message);
+      }
+      function setLoading(isLoading){
+        stage.classList.toggle("pdf-loading",Boolean(isLoading && !firstRenderComplete));
+      }
+      function setError(error){
+        const message=document.getElementById("pdf-fail-message");
+        if(message && error){
+          const text=error.message || String(error);
+          message.textContent="The PDF viewer could not load this document: "+text;
+        }
+        stage.classList.remove("pdf-loading");
+        stage.classList.add("pdf-error");
+      }
+      function isWorkerError(error){
+        const text=((error && (error.message || error.name)) || String(error || "")).toLowerCase();
+        return text.includes("worker") || text.includes("fake worker") || text.includes("setting up fake worker") || text.includes("script error");
+      }
+      function measuredStageWidth(){
+        const rect=stage.getBoundingClientRect();
+        const viewportWidth=(window.visualViewport && window.visualViewport.width) || document.documentElement.clientWidth || window.innerWidth || 0;
+        const rawWidth=rect.width || stage.clientWidth || canvas.parentElement.clientWidth || viewportWidth || 0;
+        const width=viewportWidth ? Math.min(rawWidth,viewportWidth) : rawWidth;
+        return Number.isFinite(width) && width>0 ? width : 0;
+      }
+      function measuredStageHeight(){
+        const rect=stage.getBoundingClientRect();
+        const viewportHeight=(window.visualViewport && window.visualViewport.height) || document.documentElement.clientHeight || window.innerHeight || 0;
+        const rawHeight=rect.height || stage.clientHeight || 0;
+        const height=viewportHeight ? Math.min(rawHeight,viewportHeight) : rawHeight;
+        return Number.isFinite(height) && height>0 ? height : 0;
+      }
+      function waitForStageWidth(){
+        const width=measuredStageWidth();
+        if(width)return Promise.resolve(width);
+        return new Promise(function(resolve){
+          let frames=0;
+          let settled=false;
+          let observer=null;
+          function finish(value){
+            if(settled)return;
+            settled=true;
+            if(observer)observer.disconnect();
+            resolve(value || measuredStageWidth() || Math.min(window.innerWidth || 360,720));
+          }
+          function check(){
+            const nextWidth=measuredStageWidth();
+            if(nextWidth){
+              finish(nextWidth);
+              return;
+            }
+            frames+=1;
+            if(frames>90){
+              finish(0);
+              return;
+            }
+            requestAnimationFrame(check);
+          }
+          if("ResizeObserver" in window){
+            observer=new ResizeObserver(function(entries){
+              const entry=entries[0];
+              const observed=entry && entry.contentRect && entry.contentRect.width;
+              if(observed)finish(observed);
+            });
+            observer.observe(stage);
+          }
+          requestAnimationFrame(check);
+        });
+      }
+      async function renderPage(page){
+        if(!pdfDoc)return;
+        const waitedWidth=await waitForStageWidth();
+        if(renderTask){
+          pendingPage=page;
+          renderTask.cancel();
+          return;
+        }
+        if(!firstRenderLogged){
+          firstRenderLogged=true;
+          logPdf("first render start",{page:page,stageWidth:waitedWidth,workerDisabled:workerDisabled});
+        }
+        const pdfPage=await pdfDoc.getPage(page);
+        const baseViewport=pdfPage.getViewport({scale:1});
+        const stageWidth=measuredStageWidth();
+        const stageHeight=measuredStageHeight();
+        const stageStyle=window.getComputedStyle(stage);
+        const horizontalPadding=(parseFloat(stageStyle.paddingLeft)||0)+(parseFloat(stageStyle.paddingRight)||0);
+        const verticalPadding=(parseFloat(stageStyle.paddingTop)||0)+(parseFloat(stageStyle.paddingBottom)||0);
+        const availableWidth=Math.max(220,stageWidth-horizontalPadding);
+        const availableHeight=Math.max(180,stageHeight-verticalPadding);
+        let scale=availableWidth/baseViewport.width;
+        if(window.matchMedia("(max-width: 860px)").matches && availableHeight){
+          scale=Math.min(scale,availableHeight/baseViewport.height);
+        }
+        if(!Number.isFinite(scale) || scale<=0)scale=.8;
+        scale=Math.max(.3,Math.min(1.55,scale));
+        const viewport=pdfPage.getViewport({scale});
+        const outputScale=window.devicePixelRatio || 1;
+        const context=canvas.getContext("2d");
+        canvas.width=Math.floor(viewport.width*outputScale);
+        canvas.height=Math.floor(viewport.height*outputScale);
+        canvas.style.width=Math.floor(viewport.width)+"px";
+        canvas.style.height=Math.floor(viewport.height)+"px";
+        context.setTransform(outputScale,0,0,outputScale,0,0);
+        try{
+          renderTask=pdfPage.render({canvasContext:context,viewport});
+          await renderTask.promise;
+          if(!firstRenderComplete){
+            firstRenderComplete=true;
+            setLoading(false);
+            logPdf("first render done",{page:page,canvasWidth:canvas.width,canvasHeight:canvas.height,cssWidth:canvas.style.width,cssHeight:canvas.style.height});
+          }
+        }catch(error){
+          if(error && error.name!=="RenderingCancelledException"){
+            logPdf("render catch",error.message || String(error));
+            throw error;
+          }
+        }finally{
+          renderTask=null;
+        }
+        if(pendingPage){
+          const nextPage=pendingPage;
+          pendingPage=null;
+          renderPage(nextPage);
+        }
+      }
+      function jumpToPage(page){
+        const target=Math.max(1,Math.min(totalPages,Number(page)||1));
+        currentPage=target;
+        updateStatus();
+        setFallbackPage(target);
+        if(pdfDoc)renderPage(target);
+      }
+      async function initPdf(){
+        updateStatus();
+        setLoading(true);
+        if(!window.pdfjsLib)throw new Error("PDF.js did not load.");
+        logPdf("pdfjsLib loaded");
+        async function loadDocument(disableWorker){
+          workerDisabled=disableWorker;
+          pdfjsLib.GlobalWorkerOptions.workerSrc=disableWorker ? "" : workerUrl;
+          logPdf("getDocument start",{workerSrc:pdfjsLib.GlobalWorkerOptions.workerSrc || "(disabled)",disableWorker:disableWorker});
+          const loadingTask=pdfjsLib.getDocument({url:PDF_URL,disableWorker:disableWorker});
+          const documentRef=await loadingTask.promise;
+          logPdf("getDocument done",{pages:documentRef.numPages,disableWorker:disableWorker});
+          return documentRef;
+        }
+        try{
+          pdfDoc=await loadDocument(false);
+        }catch(error){
+          logPdf("getDocument catch",error.message || String(error));
+          if(!isWorkerError(error))throw error;
+          pdfDoc=await loadDocument(true);
+        }
+        totalPages=pdfDoc.numPages || totalPages;
+        await waitForStageWidth();
+        try{
+          await renderPage(1);
+        }catch(error){
+          if(!workerDisabled && isWorkerError(error)){
+            logPdf("worker render retry",error.message || String(error));
+            if(pdfDoc && pdfDoc.destroy)await pdfDoc.destroy();
+            pdfDoc=await loadDocument(true);
+            await renderPage(1);
+          }else{
+            throw error;
+          }
+        }
+        currentPage=1;
+        updateStatus();
+      }
+      initPdf().catch(function(error){
+        logPdf("init catch",error.message || String(error));
+        setError(error);
+        updateStatus();
+      });
+      prev.addEventListener("click",function(){pdfViewer.currentPageNumber=currentPage-1;});
+      next.addEventListener("click",function(){pdfViewer.currentPageNumber=currentPage+1;});
+      window.addEventListener("resize",function(){if(pdfDoc)renderPage(currentPage);});
+
+      const form=document.getElementById("rag-form");
+      const input=document.getElementById("rag-input");
+      const messages=document.getElementById("rag-messages");
+      const tokenPattern=/[a-z0-9][a-z0-9'-]*/g;
+      const stop=new Set(["a","an","and","are","as","at","be","by","for","from","has","in","is","it","of","on","or","that","the","this","to","what","when","where","who","with"]);
+      let RAG_CORPUS=null;
+
+      function tokens(text){
+        return (String(text).toLowerCase().match(tokenPattern)||[]).filter(function(t){return !stop.has(t);});
+      }
+      function addMessage(kind,text,badge,page,note){
+        const node=document.createElement("div");
+        node.className="chat-message "+kind;
+        node.textContent=text;
+        if(badge){
+          const cite=document.createElement("span");
+          cite.className="chat-source";
+          cite.appendChild(document.createTextNode(badge));
+          if(page){
+            const jump=document.createElement("button");
+            jump.type="button";
+            jump.className="page-jump";
+            jump.textContent="→ p."+page;
+            jump.addEventListener("click",function(){pdfViewer.currentPageNumber=page;});
+            cite.appendChild(jump);
+          }
+          node.appendChild(cite);
+        }
+        if(note){
+          const detail=document.createElement("span");
+          detail.className="chat-note";
+          detail.textContent=note;
+          node.appendChild(detail);
+        }
+        messages.appendChild(node);
+        messages.scrollTop=messages.scrollHeight;
+        return node;
+      }
+      function removeMessage(node){
+        if(node && node.parentNode)node.parentNode.removeChild(node);
+      }
+      function badge(page,prefix){
+        if(!page)return prefix || "";
+        return (prefix?prefix+" · ":"")+"p."+page;
+      }
+      function snippet(text,queryTokens){
+        const sentences=String(text).split(/(?<=[.!?])\s+/).filter(Boolean);
+        let best=sentences[0] || String(text);
+        let bestScore=-1;
+        sentences.forEach(function(sentence){
+          const lower=sentence.toLowerCase();
+          const score=queryTokens.reduce(function(sum,term){return sum+(lower.includes(term)?1:0);},0);
+          if(score>bestScore){bestScore=score;best=sentence;}
+        });
+        return best.length>520?best.slice(0,517).trim()+"...":best;
+      }
+      function qaMatches(query,queryTokens){
+        return (RAG_CORPUS.qa||[]).map(function(item){
+          const haystack=tokens(item.q+" "+item.a);
+          const overlap=queryTokens.filter(function(term){return haystack.includes(term);}).length;
+          const exact=String(item.q).toLowerCase().includes(query.toLowerCase())?4:0;
+          return {type:"qa",score:overlap+exact,item:item};
+        }).filter(function(result){return result.score>0;});
+      }
+      function bm25Matches(queryTokens){
+        const bm25=RAG_CORPUS.bm25 || {};
+        const terms=bm25.terms || {};
+        const lengths=bm25.doc_lengths || [];
+        const avgdl=bm25.avgdl || 1;
+        const k1=1.5, b=.75;
+        const scores=new Map();
+        queryTokens.forEach(function(term){
+          const entry=terms[term];
+          if(!entry)return;
+          Object.entries(entry.postings).forEach(function(pair){
+            const id=Number(pair[0]);
+            const tf=Number(pair[1]);
+            const dl=lengths[id] || avgdl;
+            const numerator=tf*(k1+1);
+            const denominator=tf+k1*(1-b+b*dl/avgdl);
+            scores.set(id,(scores.get(id)||0)+entry.idf*numerator/denominator);
+          });
+        });
+        return Array.from(scores.entries()).map(function(pair){return {type:"chunk",score:pair[1],item:RAG_CORPUS.chunks[pair[0]]};});
+      }
+      function answer(query){
+        const queryTokens=Array.from(new Set(tokens(query)));
+        if(!queryTokens.length)return {text:"Ask a specific question about the sample spec.",page:null,context:""};
+        const matches=qaMatches(query,queryTokens).concat(bm25Matches(queryTokens)).sort(function(a,b){return b.score-a.score;});
+        if(!matches.length || matches[0].score<=0)return {text:"I could not find that in the sample spec.",page:null,context:""};
+        const best=matches[0];
+        if(best.type==="qa"){
+          const source=(RAG_CORPUS.chunks||[]).find(function(chunk){return chunk.page===best.item.page;});
+          return {text:best.item.a,page:best.item.page,context:(source&&source.text)||best.item.a};
+        }
+        return {
+          text:"I found this relevant passage: "+snippet(best.item.text,queryTokens),
+          page:best.item.page,
+          context:best.item.text
+        };
+      }
+      async function liveAnswer(query,result){
+        if(!result.context)return null;
+        const excerpt=result.context+" (p."+result.page+")";
+        const response=await fetch("/api/chat",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({query:query,context:excerpt})
+        });
+        if(!response.ok)return null;
+        const json=await response.json();
+        if(json && json.live && json.answer)return json.answer;
+        return null;
+      }
+      async function loadCorpus(){
+        try{
+          const response=await fetch("rag_corpus.json");
+          if(response.ok)return await response.json();
+        }catch(error){}
+        return window.RAG_CORPUS_STANDALONE || null;
+      }
+      loadCorpus().then(function(corpus){
+        RAG_CORPUS=corpus;
+        if(!RAG_CORPUS || !Array.isArray(RAG_CORPUS.chunks) || !RAG_CORPUS.chunks.length){
+          addMessage("assistant","The retrieval index could not be loaded. Serve this folder or include rag_corpus.js with the shared files.",null,null,null);
+          input.disabled=true;
+          return;
+        }
+        totalPages=RAG_CORPUS.total_pages || totalPages;
+        updateStatus();
+        addMessage("assistant","Ask me about the Port Townsend skatepark fence scope, coating materials, color, warranty, or bid requirements.",null,null,null);
+      });
+      form.addEventListener("submit",async function(event){
+        event.preventDefault();
+        if(!RAG_CORPUS)return;
+        const query=input.value.trim();
+        if(!query)return;
+        addMessage("user",query,null,null,null);
+        input.value="";
+        const result=answer(query);
+        if(result.page)pdfViewer.currentPageNumber=result.page;
+        const thinking=addMessage("assistant","Thinking...",null,null,null);
+        try{
+          const answerText=await liveAnswer(query,result);
+          removeMessage(thinking);
+          if(answerText){
+            addMessage("assistant",answerText,badge(result.page,"AI"),result.page,null);
+            return;
+          }
+        }catch(error){
+          removeMessage(thinking);
+        }
+        addMessage("assistant",result.text,badge(result.page,""),result.page,"running offline (demo mode)");
+      });
+    })();
+  </script>
+</body>
+</html>
